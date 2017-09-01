@@ -1,0 +1,134 @@
+<style>
+
+.reveal section img {
+  border: 0px;
+  box-shadow: 0 0 0 0;
+}
+.reveal table td {
+  border: 0px;
+}
+
+.reveal table {
+  border: 0px;
+}
+
+.reveal h1 {
+  font-size: 2em;
+}
+
+.reveal h3 {
+  font-size: 1.2em;
+}
+
+.reveal figcaption {
+  font-size: 0.4em;
+}
+
+.small-code pre code {
+  font-size: 1em;
+}
+
+.reveal .smalltext {
+  font-size: 0.75em;
+}
+
+</style>
+
+
+Plus/minus what? Let's talk about uncertainty
+========================================================
+author: Sigrid Keydana, Trivadis
+date: 2017/22/11
+autosize: true
+incremental:false
+width: 1400
+height: 900
+
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+In this world nothing can be said to be certain, except death and taxes
+</h1>
+
+
+Welcome to everything else!
+========================================================
+
+&nbsp;
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE,
+                      cache = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(R.matlab)
+library(rethinking)
+library(ggjoy)
+```
+
+
+- How many super cool iphone lookalikes will we sell next quarter?
+- When should we invest in more powerful servers?
+- How many boxes of super healthy energy bars should we keep in stock?
+- How long does it take to run this batch job?
+- How much time do you need to get me this exposition?
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Our task today: forecast men's 400m Olympic winning times
+========================================================
+
+&nbsp;
+
+It's 2000, just before the Olympics. This is the data we have:
+
+```{r}
+data <- readMat("olympics.mat")
+male400 <- data$male400[ ,1:2]
+male400 <- as.data.frame(male400) %>% rename(year = V1, seconds = V2)
+male400 <- male400 %>% bind_rows(
+  c(year = 2012, seconds = 43.94), c(year = 2016, seconds = 43.03))
+
+# data up till 1996
+male400_1996 <- male400 %>% filter(year < 1997)
+
+# data from 2000
+male400_2000 <- male400 %>% filter(year > 1997)
+
+bold_text_20 <- element_text(face = "bold", size = 20)
+ggplot(male400_1996, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 400m Olympic winning times 1986-1996") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20)
+
+
+```
+
+
+&nbsp;
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+
+Sources
+========================================================
+class:smalltext
+
+[] 
+
