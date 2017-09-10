@@ -123,7 +123,230 @@ ggplot(male400_1996, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
+42.3 seconds? 42.1?
+========================================================
 
+&nbsp;
+
+Linear regression says 42.33.
+
+Whatever we say, it's pretty likely to be wrong...
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+How do we deal with this?
+========================================================
+
+&nbsp;
+
+Being frequentists (for now): prediction intervals to the rescue!
+
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Wait: prediction intervals? 
+========================================================
+class:small-code
+
+&nbsp;
+
+Wasn't that called "confidence intervals?"
+
+Let's take the example of linear regression to see.
+
+
+```{r, echo=TRUE}
+(fit <- lm(seconds ~ year, male400_1996))
+```
+
+&nbsp;
+
+Here's the point prediction:
+
+```{r, echo=TRUE}
+fit %>% predict(newdata = data.frame(year = c(2000)))
+# or simply
+fit$coefficients[1] + fit$coefficients[2] * 2000
+```
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Let's try getting those (confidence? prediction?) intervals!
+========================================================
+class:small-code
+
+&nbsp;
+
+Confidence intervals:
+
+```{r, echo=TRUE}
+fit %>% predict(newdata = data.frame(year = c(2000)), interval = "confidence")
+```
+
+Prediction intervals:
+
+```{r, echo=TRUE}
+fit %>% predict(newdata = data.frame(year = c(2000)), interval = "prediction")
+```
+
+
+Quite a difference! So which one do we take?
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+One step back: sampling variation and standard errors
+========================================================
+
+&nbsp;
+
+- In our example, we are doing one-variable linear regression, which means we estimate an _intercept_ and a _slope_, that together make up the equation of a line:
+
+$y_i = \beta_0 + \beta_1 x_i + \epsilon_i$
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+$\hat \beta_0 = \bar y - \hat \beta_1 \bar x$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+$\hat \beta_1 = cor(y, x) \frac{sd(y)}{sd(x)}$
+
+
+- These estimates vary depending on the _sample_ they are estimated from
+- The statistical method gives us _standard errors_ for these estimates
+
+$\sigma_{\hat \beta_1} = \hat \sigma^2 / \sum_{i=1}^n (x_i - \bar x)^2$
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+$\sigma_{\hat \beta_0} = \left(\frac{1}{n} + \frac{\bar x^2}{\sum_{i=1}^n (x_i - \bar x)^2 }\right)\hat \sigma^2$
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+with
+$\hat \sigma^2 =\frac{1}{n-2}\sum_{i=1}^n e_i^2$
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Which let us construct confidence intervals
+========================================================
+class:small-code
+
+&nbsp;
+
+- for the parameters
+- for the line overall
+
+Let's do this manually for the parameters.
+A 95% confidence interval for the intercept would look like this:
+
+```{r, echo=TRUE}
+intercept_est <- summary(fit)$coefficients[1,1]
+intercept_se <- summary(fit)$coefficients[1,2]
+(conf_interval <- intercept_est + c(-1, 1) * qt(.975, df = fit$df) * intercept_se)
+```
+
+Same procedure for the slope:
+
+```{r, echo=TRUE}
+slope_est <- summary(fit)$coefficients[2,1]
+slope_se <- summary(fit)$coefficients[2,2]
+(conf_interval <- slope_est + c(-1, 1) * qt(.975, df = fit$df) * slope_se)
+```
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Which means we can say
+========================================================
+
+&nbsp;
+
+
+> 
+With 95% confidence, we estimate that having 4 years pass results in a decrease in the men's 400m Olympic winning times of 0.07 to 0.1 seconds
+
+&nbsp;
+
+... which is not yet a confidence interval for the complete regression line (and the points on it)
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+A confidence interval for the regression line
+========================================================
+
+&nbsp;
+
+Standard error for a point on the regression line: &nbsp; &nbsp; &nbsp; &nbsp; $\hat \sigma\sqrt{\frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
+
+This reflects the amount of uncertainty due to our estimates being based on _sample variation_.
+
+```{r}
+df  <- male400_1996 %>% bind_rows(data.frame(year = seq(2000, 2016, by=4)))
+preds <- fit %>% predict(newdata = df, interval = "confidence")
+df[25:29,2] <- preds[25:29,2]
+ggplot(df, aes(x = year, y=seconds)) + geom_line() + 
+  geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20)
+```
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Welcome to everything else!
+========================================================
+
+&nbsp;
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(R.matlab)
+library(rethinking)
+library(ggjoy)
+```
+
+
+- How many super cool iphone lookalikes will we sell next quarter?
+- When should we invest in more powerful servers?
+- How many boxes of super healthy energy bars should we keep in stock?
+- How long does it take to run this batch job?
+- How much time do you need to get me this exposition?
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+##############################################################################################
+
+TBD 
+
+- bootstrap??
+- bayes
+- time series??
+- dropout
+- end with real values 
 
 
 Sources

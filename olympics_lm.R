@@ -1,6 +1,6 @@
 source("get_data.R")
 
-fit <- lm(seconds ~ y, male400_1996)
+fit <- lm(seconds ~ year, male400_1996)
 summary(fit)
 
 fit %>% predict(newdata = data.frame(year = c(2000, 2004, 2008, 2012, 2016)))
