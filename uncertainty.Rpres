@@ -225,9 +225,10 @@ $\hat \beta_1 = cor(y, x) \frac{sd(y)}{sd(x)}$
 - These estimates vary depending on the _sample_ they are estimated from
 - The statistical method gives us _standard errors_ for these estimates
 
-$\sigma_{\hat \beta_1} = \hat \sigma^2 / \sum_{i=1}^n (x_i - \bar x)^2$
+
+$\sigma_{\hat \beta_0} = \hat \sigma^2 \left(\frac{1}{n} + \frac{\bar x^2}{\sum_{i=1}^n (x_i - \bar x)^2 }\right)$
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-$\sigma_{\hat \beta_0} = \left(\frac{1}{n} + \frac{\bar x^2}{\sum_{i=1}^n (x_i - \bar x)^2 }\right)\hat \sigma^2$
+$\sigma_{\hat \beta_1} = \hat \sigma^2 / \sum_{i=1}^n (x_i - \bar x)^2$
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 with
 $\hat \sigma^2 =\frac{1}{n-2}\sum_{i=1}^n e_i^2$
@@ -255,6 +256,8 @@ intercept_se <- summary(fit)$coefficients[1,2]
 (conf_interval <- intercept_est + c(-1, 1) * qt(.975, df = fit$df) * intercept_se)
 ```
 
+&nbsp;
+
 Same procedure for the slope:
 
 ```{r, echo=TRUE}
@@ -274,13 +277,17 @@ Which means we can say
 
 &nbsp;
 
+&nbsp;
+
 
 > 
-With 95% confidence, we estimate that having 4 years pass results in a decrease in the men's 400m Olympic winning times of 0.07 to 0.1 seconds
+"with 95% confidence, we estimate that having 4 years pass results in a decrease in the men's 400m Olympic winning times of 0.07 to 0.1 seconds"
 
 &nbsp;
 
-... which is not yet a confidence interval for the complete regression line (and the points on it)
+&nbsp;
+
+... which is not yet a confidence interval for the estimated points on the regression line ... 
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -293,19 +300,21 @@ A confidence interval for the regression line
 
 &nbsp;
 
-Standard error for a point on the regression line: &nbsp; &nbsp; &nbsp; &nbsp; $\hat \sigma\sqrt{\frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
+We need the standard error for a point $x_0$ on the regression line: &nbsp; &nbsp; &nbsp; &nbsp; $\hat \sigma\sqrt{\frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
 
 This reflects the amount of uncertainty due to our estimates being based on _sample variation_.
+Uncertainty is smallest near the mean of the predictor ($\bar x$).
 
-```{r}
-df  <- male400_1996 %>% bind_rows(data.frame(year = seq(2000, 2016, by=4)))
+```{r, fig.width=16}
+df <- male400_1996 %>% bind_cols(is_pred = factor(rep(0, nrow(male400_1996)), levels = c(0,1)))
+df <-  df %>% bind_rows(data.frame(year = seq(2000, 2016, by=4), is_pred = factor(rep(1,5), levels = c(0,1))))
 preds <- fit %>% predict(newdata = df, interval = "confidence")
-df[25:29,2] <- preds[25:29,2]
-ggplot(df, aes(x = year, y=seconds)) + geom_line() + 
+df[25:29,2] <- preds[25:29,1]
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
   geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
   ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016") +
   xlab("year") + ylab("seconds") + 
-  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20)
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
 ```
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -313,30 +322,207 @@ ggplot(df, aes(x = year, y=seconds)) + geom_line() +
 
 
 
-Welcome to everything else!
+But there's an additional source of uncertainty ...
+========================================================
+
+&nbsp;
+
+... due to predictor $x$ (the year we're in) not being 100% accountable for the outcome $y$ (the 400m winning time).
+
+The standard error for an actual prediction is: &nbsp; &nbsp; &nbsp; &nbsp; $\hat \sigma\sqrt{1 + \frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
+
+
+```{r, fig.width=16}
+df <- male400_1996 %>% bind_cols(is_pred = factor(rep(0, nrow(male400_1996)), levels = c(0,1)))
+df <-  df %>% bind_rows(data.frame(year = seq(2000, 2016, by=4), is_pred = factor(rep(1,5), levels = c(0,1))))
+preds <- fit %>% predict(newdata = df, interval = "prediction")
+df[25:29,2] <- preds[25:29,1]
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+```
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Confusing? Let's turn Bayesians!
+========================================================
+
+&nbsp;
+
+A better match for our intuitions in several ways...
+
+- data is given, parameters are random (and thus have distributions, too!)
+- as new data comes in, we update our expectations - according to famous _Bayes theorem_
+
+$$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$ 
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
 ========================================================
 
 &nbsp;
 
 
-```{r}
-library(ggplot2)
-library(dplyr)
-library(R.matlab)
-library(rethinking)
-library(ggjoy)
-```
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
-- How many super cool iphone lookalikes will we sell next quarter?
-- When should we invest in more powerful servers?
-- How many boxes of super healthy energy bars should we keep in stock?
-- How long does it take to run this batch job?
-- How much time do you need to get me this exposition?
+
+
+========================================================
+
+&nbsp;
+
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
 
 ##############################################################################################
 
