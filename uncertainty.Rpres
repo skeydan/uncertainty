@@ -74,6 +74,7 @@ library(dplyr)
 library(R.matlab)
 library(rethinking)
 library(ggjoy)
+library(forecast)
 ```
 
 
@@ -349,8 +350,103 @@ ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = i
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
+Fine, but... that's all specific to linear regression...
+========================================================
 
-Confusing? Let's turn Bayesians!
+&nbsp;
+
+- What if we were using, say, ARIMA for forecasting that time series?
+
+- What if we used some custom method that does not come with standard errors / confidence intervals already?
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Let's try ARIMA on the 400m winning times!
+========================================================
+class:small-code
+
+
+&nbsp;
+
+```{r, echo=TRUE}
+fit <- auto.arima(male400_1996$seconds, allowdrift = FALSE)
+fit$coef
+```
+
+&nbsp;
+
+We get standard errors for the parameter estimations:
+
+```{r, echo=TRUE}
+sqrt(diag(vcov(fit)))
+```
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+ARIMA prediction intervals
+========================================================
+class:small-code
+
+&nbsp;
+
+... which means we can get prediction intervals here, too:
+
+```{r, fig.width=16}
+autoplot(forecast(fit, h=5))
+```
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+So we were in luck...
+========================================================
+
+&nbsp;
+
+What can we do when we're not magically given those precision intervals?
+
+&nbsp;
+
+We'll probably need to pull ourselves up by our own bootstraps...
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+The bootstrap
+========================================================
+
+&nbsp;
+
+- Ideally, we'd compute a parameter's standard error from many repeated samples
+- Unfortunately, most of the time we just have one
+- Idea: create synthetical samples from the original sample, using _sampling with replacement_
+
+<figure>
+    <img src='bootstrap.png' width='40%'/>
+    <figcaption>Source: [1]</figcaption>
+</figure>
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+So many ways... anything we could do to make this more intuitive?
 ========================================================
 
 &nbsp;
@@ -368,17 +464,6 @@ $$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 
 
-========================================================
-
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
 
 ========================================================
 
@@ -484,43 +569,6 @@ $$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-
-========================================================
-
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-
-========================================================
-
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-
-========================================================
-
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
 
 
 
