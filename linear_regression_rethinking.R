@@ -30,9 +30,9 @@ model <- map2stan(
   alist(
     seconds ~ dnorm(mu, sigma),
     mu <- a + b*year,
-    a ~ dnorm(50, 100),
+    a ~ dnorm(46, 30),
     b ~ dnorm(0,10),
-    sigma ~ dcauchy(0, 2)
+    sigma ~ dcauchy(0, 10)
   ),
   data = male400_1996,
   iter = 6000,

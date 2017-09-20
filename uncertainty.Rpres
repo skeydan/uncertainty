@@ -75,6 +75,9 @@ library(R.matlab)
 library(rethinking)
 library(ggjoy)
 library(forecast)
+library(gridExtra)
+library(ggfortify)
+library(extraDistr)
 ```
 
 
@@ -129,6 +132,8 @@ ggplot(male400_1996, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 
 
 &nbsp;
 
+&nbsp;
+
 Linear regression says 42.33.
 
 Whatever we say, it's pretty likely to be wrong...
@@ -143,7 +148,9 @@ How do we deal with this?
 
 &nbsp;
 
-Being frequentists (for now): prediction intervals to the rescue!
+&nbsp;
+
+Let's better not commit to a point estimate... prediction intervals to the rescue!
 
 
 
@@ -153,15 +160,13 @@ Being frequentists (for now): prediction intervals to the rescue!
 
 
 
-Wait: prediction intervals? 
+Wait: prediction intervals? Wasn't that called "confidence intervals?"
 ========================================================
 class:small-code
 
 &nbsp;
 
-Wasn't that called "confidence intervals?"
-
-Let's take the example of linear regression to see.
+Let's take the example of linear regression.
 
 
 ```{r, echo=TRUE}
@@ -173,9 +178,9 @@ Let's take the example of linear regression to see.
 Here's the point prediction:
 
 ```{r, echo=TRUE}
+# this would yield the same result
+# fit$coefficients[1] + fit$coefficients[2] * 2000
 fit %>% predict(newdata = data.frame(year = c(2000)))
-# or simply
-fit$coefficients[1] + fit$coefficients[2] * 2000
 ```
 
 
@@ -215,13 +220,15 @@ One step back: sampling variation and standard errors
 
 &nbsp;
 
-- In our example, we are doing one-variable linear regression, which means we estimate an _intercept_ and a _slope_, that together make up the equation of a line:
+- In single-variable linear regression we estimate an _intercept_ and a _slope_
 
-$y_i = \beta_0 + \beta_1 x_i + \epsilon_i$
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 $\hat \beta_0 = \bar y - \hat \beta_1 \bar x$ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 $\hat \beta_1 = cor(y, x) \frac{sd(y)}{sd(x)}$
 
+- ... that together make up the equation of a line
+
+$y_i = \beta_0 + \beta_1 x_i + \epsilon_i$
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
 - These estimates vary depending on the _sample_ they are estimated from
 - The statistical method gives us _standard errors_ for these estimates
@@ -231,7 +238,7 @@ $\sigma_{\hat \beta_0} = \hat \sigma^2 \left(\frac{1}{n} + \frac{\bar x^2}{\sum_
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 $\sigma_{\hat \beta_1} = \hat \sigma^2 / \sum_{i=1}^n (x_i - \bar x)^2$
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-with
+with &nbsp; 
 $\hat \sigma^2 =\frac{1}{n-2}\sum_{i=1}^n e_i^2$
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -239,7 +246,7 @@ $\hat \sigma^2 =\frac{1}{n-2}\sum_{i=1}^n e_i^2$
 
 
 
-Which let us construct confidence intervals
+From standard errors, we can construct confidence intervals
 ========================================================
 class:small-code
 
@@ -288,8 +295,7 @@ Which means we can say
 
 &nbsp;
 
-... which is not yet a confidence interval for the estimated points on the regression line ... 
-
+... which reflects our uncertainty about the slope, not the points on the line.
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
@@ -323,14 +329,14 @@ ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = i
 
 
 
-But there's an additional source of uncertainty ...
+But... there's an additional source of uncertainty!
 ========================================================
 
 &nbsp;
 
-... due to predictor $x$ (the year we're in) not being 100% accountable for the outcome $y$ (the 400m winning time).
+For sure the predictor $x$ (the year we're in) cannot be held 100% responsible for the outcome $y$ (the 400m winning time).
 
-The standard error for an actual prediction is: &nbsp; &nbsp; &nbsp; &nbsp; $\hat \sigma\sqrt{1 + \frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
+The standard error for an actual _prediction_ is: &nbsp; &nbsp; &nbsp; &nbsp; $\hat \sigma\sqrt{1 + \frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
 
 
 ```{r, fig.width=16}
@@ -355,9 +361,11 @@ Fine, but... that's all specific to linear regression...
 
 &nbsp;
 
+&nbsp;
+
 - What if we were using, say, ARIMA for forecasting that time series?
 
-- What if we used some custom method that does not come with standard errors / confidence intervals already?
+- What if we used some custom method that does not come complete with standard errors / confidence intervals and all?
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -373,8 +381,8 @@ class:small-code
 &nbsp;
 
 ```{r, echo=TRUE}
-fit <- auto.arima(male400_1996$seconds, allowdrift = FALSE)
-fit$coef
+arima_fit <- auto.arima(male400_1996$seconds, allowdrift = FALSE)
+arima_fit$coef
 ```
 
 &nbsp;
@@ -382,7 +390,7 @@ fit$coef
 We get standard errors for the parameter estimations:
 
 ```{r, echo=TRUE}
-sqrt(diag(vcov(fit)))
+sqrt(diag(vcov(arima_fit)))
 ```
 
 
@@ -400,7 +408,7 @@ class:small-code
 ... which means we can get prediction intervals here, too:
 
 ```{r, fig.width=16}
-autoplot(forecast(fit, h=5))
+autoplot(forecast(arima_fit, h=5))
 ```
 
 
@@ -410,12 +418,10 @@ autoplot(forecast(fit, h=5))
 
 
 
-So we were in luck...
+Fine. What if we're not automagically given those precision intervals?
 ========================================================
 
 &nbsp;
-
-What can we do when we're not magically given those precision intervals?
 
 &nbsp;
 
@@ -432,8 +438,8 @@ The bootstrap
 &nbsp;
 
 - Ideally, we'd compute a parameter's standard error from many repeated samples
-- Unfortunately, most of the time we just have one
-- Idea: create synthetical samples from the original sample, using _sampling with replacement_
+- Unfortunately, most of the time we just have a single sample
+- Idea: create synthetical samples from the original one, using _sampling with replacement_
 
 <figure>
     <img src='bootstrap.png' width='40%'/>
@@ -444,32 +450,36 @@ The bootstrap
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
-
-
-So many ways... anything we could do to make this more intuitive?
+So it all depends on the specifics of the method we're using...
 ========================================================
 
 &nbsp;
 
-A better match for our intuitions in several ways...
+&nbsp;
 
-- data is given, parameters are random (and thus have distributions, too!)
+Wouldn't it be nice if there was a unified, intuitive approach?
+
+&nbsp;
+
+Well ... there is.
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Let's do it the Bayesian way!
+========================================================
+
+&nbsp;
+
+In Bayesian statistics:
+
+- the _data_ is _given_, and the _parameters_ are _random_ (and thus have distributions, too!)
 - as new data comes in, we update our expectations - according to famous _Bayes theorem_
 
-$$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$ 
+$$P(A|B) = \frac{P(B|A) * P(A)}{P(B)}$$ 
 
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-
-========================================================
-
-&nbsp;
-
-
+- uncertainty estimates are "for free", as we look at the complete posterior distribution
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
@@ -477,10 +487,15 @@ $$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 
 
+Bayes - in practice - in R
 ========================================================
 
 &nbsp;
 
+R packages for Bayesian modeling (using the <a href="mc-stan.org">_Stan_</a> backend for MCMC sampling):
+- _rethinking_ (by R. McElreath, author of awesome _Statistical Rethinking_) - we'll use this one soon
+- rstan (uses Stan's C-like DSL)
+- rstanarm, brms (higher level interfaces in the style of R's usual model fitting syntax)
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -488,11 +503,43 @@ $$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 
 
-
+No Bayes without priors
 ========================================================
 
 &nbsp;
 
+- Common practice: use uniform priors (feigning total ignorance)
+- But often, we have at least _some_ information!
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Choosing priors
+========================================================
+
+&nbsp;
+
+What do we know?
+
+- mean is somewhere around 46 => have intercept centered at 46, with high variance
+- want to conservatively estimate slope: center at 0, but use high variance
+- noise variance can only be >= 0: use half-cauchy centered at 0
+
+```{r, fig.width=12, fig.height=6}
+
+bold_text_15 <- element_text(face = "bold", size = 15)
+g1 <- ggdistribution(dnorm, x = 25:65, mean = 46, sd=30, fill = 'red') + ggtitle("Prior for intercept") +
+  theme(title = bold_text_15)
+g2 <- ggdistribution(dnorm, x = -3:3, mean = 0, sd=10, fill = 'blue') + ggtitle("Prior for slope") +
+  theme(title = bold_text_15)
+g3 <- ggdistribution(dhcauchy, x = seq(-3,3,by=0.01), sigma = 10, fill = "green") + ggtitle("Prior for variance") +
+  theme(title = bold_text_15)
+grid.arrange(g1, g2, g3, ncol=3)
+```
+
+&nbsp;
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -500,11 +547,44 @@ $$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 
 
-
+The model
 ========================================================
+class:small-code
 
 &nbsp;
 
+
+```{r, echo = TRUE, eval = FALSE}
+
+model <- map2stan(
+  alist(
+    seconds ~ dnorm(mu, sigma),
+    mu <- a + b*year,
+    a ~ dnorm(46, 30),
+    b ~ dnorm(0,10),
+    sigma ~ dcauchy(0, 10)
+  ),
+  data = male400_1996,
+  iter = 6000,
+  chains = 4,
+  verbose = FALSE
+)
+
+```
+
+... sampling ... sampling ... sampling ... and here we go:
+
+
+```{r, echo=TRUE, eval = FALSE}
+precis(model)
+```
+
+```
+        Mean StdDev lower 0.89 upper 0.89 n_eff Rhat
+a     159.34  23.66     123.89     200.52    80 1.00
+b      -0.06   0.01      -0.08      -0.04    80 1.00
+sigma   1.61   0.41       1.05       2.12    67 1.01
+```
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -512,11 +592,24 @@ $$P(A ~|~ B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 
 
-
+What about the regression line?
 ========================================================
 
 &nbsp;
 
+With all the sampling that's been going on, now we don't just have 1 line, but many!
+We extract synchronous parameter values from the samples and construct one line per sample:
+
+```{r, echo = FALSE}
+post <- extract.samples(model)
+
+### plot regression lines for samples from posterior
+plot( male400_1996$year , male400_1996$seconds ,
+      xlim=range(male400_1996$year) , ylim=range(male400_1996$seconds) ,
+      col=rangi2 , xlab="" , ylab="" )
+for ( i in 1:20 )
+  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3))
+```
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
