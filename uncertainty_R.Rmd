@@ -1,0 +1,413 @@
+---
+title: "uncertainty_R"
+output: html_document
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE,
+                      cache = TRUE)
+```
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(R.matlab)
+library(rethinking)
+library(ggjoy)
+library(forecast)
+library(gridExtra)
+library(ggfortify)
+library(extraDistr)
+library(stringr)
+```
+
+## Introduction
+
+Forecasting is something we do every day. Will it rain? Will I finish this task in time? Will &lt;fill in your favorite sports team here&gt; win the next &lt;fill in corresponding sports&gt match?
+
+In our work life, it's often numbers we have to forecast: How many products will we sell next quarter? When should we buy more storage for our big data system? At what intervals do we have to get new supply?
+
+Whenever we reply with a specific number, we're pretty likely to be wrong. What can we do? We need to make sure we communicate _intervals_, not point estimates. That's what this presentation is about.
+
+## Our task today: forecasting the men's 400m Olympic winning times
+
+It's 2000, just before the Olympics. We're tasked with forecasting the men's 400m winning times.
+This is the data we have:
+
+```{r}
+data <- readMat("olympics.mat")
+male400 <- data$male400[ ,1:2]
+male400 <- as.data.frame(male400) %>% rename(year = V1, seconds = V2)
+male400 <- male400 %>% bind_rows(
+  c(year = 2012, seconds = 43.94), c(year = 2016, seconds = 43.03))
+
+# data up till 1996
+male400_1996 <- male400 %>% filter(year < 1997)
+
+# data from 2000
+male400_2000 <- male400 %>% filter(year > 1997)
+
+bold_text_20 <- element_text(face = "bold", size = 20)
+ggplot(male400_1996, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 400m Olympic winning times 1986-1996") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20)
+
+
+```
+
+
+
+So what should we say? 42.3 seconds? 42.1? Let's try linear regression:
+
+```{r, echo=TRUE}
+fit <- lm(seconds ~ year, male400_1996)
+fit %>% predict(newdata = data.frame(year = c(2000)))
+```
+
+Whatever the authority of linear regression, it does not feel safe to just say "42.3". Fortunately, from linear regression we can also get something else: prediction intervals.
+
+Wait: prediction intervals? Wasn't that called "confidence intervals?" Well, there's both.
+Let's take a look:
+
+First, confidence intervals. We see that the 95% confidence interval ranges from 41.3 to 43.4 seconds.
+
+```{r, echo=TRUE}
+fit %>% predict(newdata = data.frame(year = c(2000)), interval = "confidence")
+```
+
+And here are prediction intervals. They are a lot wider: from 39.4 to 45.2.
+
+```{r, echo=TRUE}
+fit %>% predict(newdata = data.frame(year = c(2000)), interval = "prediction")
+```
+
+So which one should we report? Let's first find out what they actually mean.
+
+## Sampling variation and standard errors
+
+In single-variable linear regression we estimate an _intercept_ 
+
+$\hat \beta_0 = \bar y - \hat \beta_1 \bar x$ 
+
+and a _slope_
+
+$\hat \beta_1 = cor(y, x) \frac{sd(y)}{sd(x)}$
+
+that together make up the equation of a line:
+
+$y_i = \beta_0 + \beta_1 x_i + \epsilon_i$
+
+These estimates vary depending on the _sample_ they are estimated from. Linear regression gives us _standard errors_ for these estimates:
+
+$\sigma_{\hat \beta_0} = \hat \sigma^2 \left(\frac{1}{n} + \frac{\bar x^2}{\sum_{i=1}^n (x_i - \bar x)^2 }\right)$
+
+$\sigma_{\hat \beta_1} = \hat \sigma^2 / \sum_{i=1}^n (x_i - \bar x)^2$
+
+with $\hat \sigma^2 =\frac{1}{n-2}\sum_{i=1}^n e_i^2$
+
+## Confidence intervals in linear regression
+
+From the parameters' standard errors, we can construct confidence intervals for them. We can even do this manually.
+A 95% confidence interval for the intercept would look like this:
+
+```{r, echo=TRUE}
+intercept_est <- summary(fit)$coefficients[1,1]
+intercept_se <- summary(fit)$coefficients[1,2]
+(conf_interval <- intercept_est + c(-1, 1) * qt(.975, df = fit$df) * intercept_se)
+```
+
+And here is a confidence interval for the slope:
+
+```{r, echo=TRUE}
+slope_est <- summary(fit)$coefficients[2,1]
+slope_se <- summary(fit)$coefficients[2,2]
+(conf_interval <- slope_est + c(-1, 1) * qt(.975, df = fit$df) * slope_se)
+```
+
+
+With these confidence intervals for the parameters, we can say something like
+
+_with 95% confidence, we estimate that having 4 years pass results in a decrease in the men's 400m Olympic winning times of 0.07 to 0.1 seconds_
+
+... which reflects our uncertainty about the slope, not the points on the line. We need something more.
+
+So what we need is the standard error for a point $x_0$ on the regression line: 
+
+$\hat \sigma\sqrt{\frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
+
+This reflects the amount of uncertainty due to our estimates being based on _sample variation_.
+Uncertainty is smallest near the mean of the predictor $\bar x$.
+
+```{r, fig.width=16}
+df <- male400_1996 %>% bind_cols(is_pred = factor(rep(0, nrow(male400_1996)), levels = c(0,1)))
+df <-  df %>% bind_rows(data.frame(year = seq(2000, 2016, by=4), is_pred = factor(rep(1,5), levels = c(0,1))))
+preds <- fit %>% predict(newdata = df, interval = "confidence")
+df[25:29,2] <- preds[25:29,1]
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Confidence intervals from least squares") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+```
+
+But uncertainty based on sample variation is not everything. There's an additional source of uncertainty!
+
+For sure the predictor $x$ (the year we're in) cannot be held 100% responsible for the outcome $y$ (the 400m winning time).
+
+
+## Prediction intervals in linear regression
+
+The standard error for an actual _prediction_ is: 
+
+$\hat \sigma\sqrt{1 + \frac{1}{n} +  \frac{(x_0 - \bar x)^2}{\sum_{i=1}^n (x_i - \bar x)^2}}$
+
+... which leads to the following _prediction intervals_
+
+```{r, fig.width=16}
+df <- male400_1996 %>% bind_cols(is_pred = factor(rep(0, nrow(male400_1996)), levels = c(0,1)))
+df <-  df %>% bind_rows(data.frame(year = seq(2000, 2016, by=4), is_pred = factor(rep(1,5), levels = c(0,1))))
+preds <- fit %>% predict(newdata = df, interval = "prediction")
+df[25:29,2] <- preds[25:29,1]
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Prediction intervals from least squares") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+```
+
+
+These prediction intervals are what we report with our forecasts.
+
+You might say that's all fine, but these formulae are specific to linear regression. For time series, we might be using ARIMA though, for example. Or say we use a method that does not conveniently come with prediction/confidence intervals. What do we do? Let's look at ARIMA first.
+
+## Prediction intervals for ARIMA
+
+&nbsp;
+
+Here we apply ARIMA to the men's 400m data.
+
+```{r, echo=TRUE}
+arima_fit <- auto.arima(male400_1996$seconds, allowdrift = FALSE)
+arima_fit$coef
+```
+
+&nbsp;
+
+It's less convenient than with linear regression, but we can extract standard errors for the parameter estimates:
+
+```{r, echo=TRUE}
+sqrt(diag(vcov(arima_fit)))
+```
+
+
+The existence of standard errors means prediction intervals are available too:
+
+```{r, fig.width=16}
+autoplot(forecast(arima_fit, h=5))
+```
+
+Fine. So what if prediction intervals are not available? A generic method we can always use is the bootstrap.
+
+## The bootstrap
+
+Ideally, we'd compute a parameter's standard error from many repeated samples. Unfortunately, most of the time we just have a single sample.
+
+The idea of the bootstrap is to use the one sample we have and treat it as a population. We repeatedly draw samples from it, with replacement, and compute the parameter we're interested in. Then the standard error is estimated from the variability of those repeated estimations.
+
+This approach is generally applicable whatever the parameter estimated.
+
+If you're confused by now, that's understandable. So many different ways... Wouldn't it be nice if there were one unified framework within which to compute uncertainty? 
+
+Well - there is. In the Bayesian approach, there's a common philosophy underlying all models.
+
+## Going Bayesian
+
+In Bayesian statistics, the _data_ is _given_, and the _parameters_ are _random_  - as opposed to the often used frequentist paradigm. The parameters being random means they have _distributions_, as opposed to being point estimates.
+
+We start with out prior belief about the parameters. Then, as new data comes in, we update our expectations - according to the famous _Bayes theorem_
+
+$$P(A|B) = \frac{P(B|A) * P(A)}{P(B)}$$ 
+
+By updating our prior belief with the likelihood of the data observed, we arrive at posterior estimates, which must be updated again if and when new data comes in.
+
+As we're always working with complete distributions, in the Bayesian framework we get uncertainty estimates "for free".
+
+The Bayesian approach itself is old, but it only recently gained popularity as modern hardware and software allowed for ways to approximate the evidence (the term in the formula's denominator).
+
+There is an increasing number of ways to do Bayesian modeling in R. Most of them use the _Stan_ backend for Markov Chain Monte Carlo sampling (Hamiltonian Monte Carlo, mostly).
+
+Here, we're using R. McElreath's _rethinking_ package that allows for model specification in the usual way.
+
+Before looking at the actual model, let's think about priors for our parameters: the intercept and the slope.
+
+Sometimes in Bayesian inference, uniform priors are used, thus feigning total ignorance. But often, we have at least _some_ information! In our case, we know that
+
+1. the mean is somewhere around 46. Thus, we'll have the intercept centered at 46, but we choose a high variance for its prior.
+2. the noise variance can only be >= 0, not negative. We'll use a half-cauchy centered at 0 as its prior.
+
+Furthermore, we want to conservatively estimate the slope, while still giving the data the freedom to make us adjust our prior belief. Thus, we center the slope's prior distribution at 0, but have it vary around its mean a lot.
+
+Here is a graphical display of the chosen priors:
+
+
+```{r, fig.width=12, fig.height=6}
+
+bold_text_15 <- element_text(face = "bold", size = 15)
+g1 <- ggdistribution(dnorm, x = 25:65, mean = 46, sd=30, fill = 'red') + ggtitle("Prior for intercept") +
+  theme(title = bold_text_15)
+g2 <- ggdistribution(dnorm, x = -3:3, mean = 0, sd=10, fill = 'blue') + ggtitle("Prior for slope") +
+  theme(title = bold_text_15)
+g3 <- ggdistribution(dhcauchy, x = seq(-3,3,by=0.01), sigma = 10, fill = "green") + ggtitle("Prior for variance") +
+  theme(title = bold_text_15)
+grid.arrange(g1, g2, g3, ncol=3)
+```
+
+
+Now we're ready to specify the model.
+
+
+```{r, echo = TRUE, results = "hide"}
+require(rethinking)
+
+model <- map2stan(
+  alist(
+    seconds ~ dnorm(mu, sigma),
+    mu <- a + b*year,
+    a ~ dnorm(46, 30),
+    b ~ dnorm(0,10),
+    sigma ~ dcauchy(0, 10)
+  ),
+  data = male400_1996,
+  iter = 6000,
+  chains = 4,
+  verbose = FALSE
+)
+
+```
+
+
+After some sampling time, this is the output we get - intercept, slope and noise variance from Bayesian linear regression.
+
+```{r, echo=TRUE}
+precis(model)
+```
+
+So, what about the regression line? With all the sampling that's been going on, now we don't just have 1 line, but many!
+
+_rethinking_ saves for us the list of sampled parameters. We can use them directly and draw one line per sample (we're drawing just 100 here):
+
+```{r, echo = FALSE}
+post <- extract.samples(model)
+
+### plot regression lines for samples from posterior
+plot( male400_1996$year , male400_1996$seconds ,
+      xlim=range(male400_1996$year) , ylim=range(male400_1996$seconds) ,
+      col=rangi2 , xlab="" , ylab="" )
+for ( i in 1:100 )
+  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.2))
+```
+
+
+We can immediately _see_ the uncertainty in our model!
+
+## Bayesian credible intervals and prediction intervals
+
+In the Bayesian framework, the equivalent of a confidence interval is a _credible interval_.
+Equivalent? Well... except that credible intervals really have an intuitive interpretation, and credible intervals really contain the highest density values as they don't have to be equi-spaced around the point estimate.
+
+```{r, results= "hide", fig.width=16}
+df <- male400_1996 %>% bind_cols(is_pred = factor(rep(0, nrow(male400_1996)), levels = c(0,1)))
+df <-  df %>% bind_rows(data.frame(year = seq(2000, 2016, by=4), is_pred = factor(rep(1,5), levels = c(0,1))))
+mu <- link(model, data=df)
+mu_mean <- apply(mu, 2, mean)
+mu_HPDI <- apply(mu, 2, HPDI , prob=0.95) %>% t()
+df[25:29,2] <- mu_mean[25:29]
+```
+
+Here we see credible intervals for the regression line. Credible intervals are easily constructed using existing samples from the parameters' posterior.
+
+```{r}
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = mu_HPDI[ , 1], ymax = mu_HPDI[ , 2]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Credible intervals from Bayesian linear regression") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+
+```
+
+
+Of course, here again we're not really interested in predicting averages, but individual examples.
+We want _prediction intervals_:
+
+```{r, results= "hide", fig.width=16}
+sims <- sim(model, data=df)
+sim_PI <- apply(sims, 2, PI, prob=0.95) %>% t()
+```
+
+```{r}
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = sim_PI[ , 1], ymax = sim_PI[ , 2]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Prediction intervals from Bayesian linear regression") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+
+```
+
+Prediction intervals are computed from the complete _posterior predictive_ distribution.
+
+So that's uncertainty intervals... but really the Bayesian method gives us more: we have a distribution of predictions for each datapoint. This is called the _posterior predictive_ distribution.
+
+## Posterior predictive - the whole picture
+
+The posterior predictive is a weighted average of predictions, computed over all possible parameter values.
+
+$$p(\tilde{y}|X, y, \tilde{x}, \theta) = \int p(\tilde{y}|\tilde{x},\theta) \, p(\theta|X,y) \operatorname{d}\!\theta$$
+
+We have a distribution of predicted $\hat y$s for every $x$:
+
+```{r, fig.width=16}
+df <- data.frame(sims)
+df <- df %>% 
+  gather(key = "year", value = "secs") %>% 
+  mutate(year = as.numeric(str_sub(year,2,3)))
+
+convert_years <- function(x) 1896 + 4* (x-1)
+
+ggplot(df, aes(x = secs, y = year, group = year, height = ..density..)) + geom_joy(stat = "density", rel_min_height = 0.01, scale=4) +
+  scale_x_reverse() + scale_y_reverse() + theme_joy(grid = FALSE) +
+  scale_y_continuous(labels = convert_years) 
+  
+```
+
+This is an amazing amount of information we get when using the Bayesian approach!
+
+However, there is one thing we haven't addressed yet: What if I use neural networks for prediction - what if use deep learning?
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+Uncertainty in deep neural networks
+</h1>
+
+
+
+Uncertainty in deep learning
+========================================================
+
+&nbsp;
+
+- Normally, in neural networks, the outputs are point predictions (possibly in the form of class probabilities)
+- Looking at NN architecture, it is not self-evident how to extract confidence/prediction intervals from a network
+- We could always apply the bootstrap approach, or even simple ensembling, to at least get a feel for the variability of the net's estimates
+- Several other approaches have been suggested, among them the use of _dropout_ to calculate uncertainty:

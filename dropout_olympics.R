@@ -4,35 +4,27 @@ library(ggplot2)
 
 K <- keras::backend()
 
-n_samples <- 1000
-n_features <- 1
-n_hidden1 <- 128
-n_hidden2 <- 128
+source("get_data.R")
+
+n_hidden1 <- 64
+n_hidden2 <- 64
 n_output <- 1
 
 learning_rate <- 1e-6
-num_epochs <- 100
-batch_size <- n_samples / 100
+num_epochs <- 500
+batch_size <- 1
 
-dropout <- 0.5
+dropout <- 0.1
 l2 <- 0.1
 
 #X_train <- matrix(rnorm(n_samples * n_features, mean = 10, sd = 2), nrow = n_samples, ncol = n_features)
-X_train <- matrix(c(-500, -200, 1:996 + rnorm(996, mean = 0, sd = 10), 1200, 1500),
-                  nrow = 1000, ncol = 1)
+X_train <- matrix(male400_1996$year, ncol = 1)
 dim(X_train)
-coefs <- c(0.5)
-#coefs <- c(0.5, -20, 11)
-mu <- X_train %*% coefs
-sigma = 2
-y_train <- rnorm(n_samples, mu, sigma)
+y_train <- male400_1996$seconds
 
-fit <- lm(y_train ~ X_train)
-summary(fit)
- 
 model <- keras_model_sequential() 
 model %>% 
-  layer_dense(units = n_hidden1, activation = 'relu', input_shape = c(n_features)) %>% 
+  layer_dense(units = n_hidden1, activation = 'relu', input_shape = 1) %>% 
   layer_dropout(rate = dropout) %>% 
   layer_activity_regularization(l1=0, l2=l2) %>%
   layer_dense(units = n_hidden2, activation = 'relu') %>%
@@ -48,11 +40,11 @@ model %>% compile(
   
 history <- model %>% fit(
     X_train, y_train, 
-    epochs = num_epochs, batch_size = batch_size, 
-    validation_split = 0.2
-  )
+    epochs = num_epochs, batch_size = batch_size 
+)
 
 plot(history)
+model %>% predict(X_train)
 
 model$layers
 get_output = K$`function`(list(model$layers[[1]]$input, K$learning_phase()), list(model$layers[[7]]$output))
@@ -81,7 +73,7 @@ for(i in seq_len(n)) {
   # train mode
   preds[ ,i] <- get_output(list(X_train, 1))[[1]]
 }
-dim(preds)
+preds 
 
 (predictive_mean <- apply(preds, 1, mean))
 (predictive_var <-apply(preds, 1, var))
@@ -97,4 +89,3 @@ df <- data.frame(
 
 ggplot(df, aes(x = x, y=predictive_mean)) + geom_point() + 
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) 
-

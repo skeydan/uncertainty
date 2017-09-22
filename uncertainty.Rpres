@@ -70,6 +70,7 @@ knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
 
 ```{r}
 library(ggplot2)
+library(tidyr)
 library(dplyr)
 library(R.matlab)
 library(rethinking)
@@ -78,6 +79,7 @@ library(forecast)
 library(gridExtra)
 library(ggfortify)
 library(extraDistr)
+library(stringr)
 ```
 
 
@@ -90,6 +92,18 @@ library(extraDistr)
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+What we do: sports forecasts
+</h1>
 
 
 Our task today: forecast men's 400m Olympic winning times
@@ -158,6 +172,17 @@ Let's better not commit to a point estimate... prediction intervals to the rescu
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+Prediction intervals - linear regression
+</h1>
 
 
 Wait: prediction intervals? Wasn't that called "confidence intervals?"
@@ -319,7 +344,7 @@ preds <- fit %>% predict(newdata = df, interval = "confidence")
 df[25:29,2] <- preds[25:29,1]
 ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
   geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
-  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016") +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Confidence intervals from least squares") +
   xlab("year") + ylab("seconds") + 
   theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
 ```
@@ -346,7 +371,7 @@ preds <- fit %>% predict(newdata = df, interval = "prediction")
 df[25:29,2] <- preds[25:29,1]
 ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
   geom_ribbon(aes(ymin = preds[ , 2], ymax = preds[ , 3]), alpha = 0.2) +
-  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016") +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Prediction intervals from least squares") +
   xlab("year") + ylab("seconds") + 
   theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
 ```
@@ -372,6 +397,17 @@ Fine, but... that's all specific to linear regression...
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+Prediction intervals - ARIMA
+</h1>
+
 
 Let's try ARIMA on the 400m winning times!
 ========================================================
@@ -387,7 +423,7 @@ arima_fit$coef
 
 &nbsp;
 
-We get standard errors for the parameter estimations:
+We get standard errors for the parameter estimates:
 
 ```{r, echo=TRUE}
 sqrt(diag(vcov(arima_fit)))
@@ -418,7 +454,7 @@ autoplot(forecast(arima_fit, h=5))
 
 
 
-Fine. What if we're not automagically given those precision intervals?
+Fine. What if we're not automagically given those prediction intervals?
 ========================================================
 
 &nbsp;
@@ -430,6 +466,17 @@ We'll probably need to pull ourselves up by our own bootstraps...
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+Generic solution: the bootstrap
+</h1>
 
 
 The bootstrap
@@ -467,6 +514,19 @@ Well ... there is.
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
+
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+Uncertainty for free: The Bayesian approach
+</h1>
+
+
 Let's do it the Bayesian way!
 ========================================================
 
@@ -487,7 +547,7 @@ $$P(A|B) = \frac{P(B|A) * P(A)}{P(B)}$$
 
 
 
-Bayes - in practice - in R
+Bayes - in practice - using R
 ========================================================
 
 &nbsp;
@@ -503,7 +563,7 @@ R packages for Bayesian modeling (using the <a href="mc-stan.org">_Stan_</a> bac
 
 
 
-No Bayes without priors
+No Bayes without priors...
 ========================================================
 
 &nbsp;
@@ -516,7 +576,7 @@ No Bayes without priors
 
 
 
-Choosing priors
+Choosing priors for the men's 400m
 ========================================================
 
 &nbsp;
@@ -526,6 +586,8 @@ What do we know?
 - mean is somewhere around 46 => have intercept centered at 46, with high variance
 - want to conservatively estimate slope: center at 0, but use high variance
 - noise variance can only be >= 0: use half-cauchy centered at 0
+
+&nbsp;
 
 ```{r, fig.width=12, fig.height=6}
 
@@ -539,22 +601,20 @@ g3 <- ggdistribution(dhcauchy, x = seq(-3,3,by=0.01), sigma = 10, fill = "green"
 grid.arrange(g1, g2, g3, ncol=3)
 ```
 
-&nbsp;
-
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
 
-The model
+Model specification
 ========================================================
-class:small-code
 
 &nbsp;
 
 
-```{r, echo = TRUE, eval = FALSE}
+```{r, echo = TRUE, results = "hide"}
+require(rethinking)
 
 model <- map2stan(
   alist(
@@ -572,18 +632,23 @@ model <- map2stan(
 
 ```
 
-... sampling ... sampling ... sampling ... and here we go:
 
 
-```{r, echo=TRUE, eval = FALSE}
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+
+
+Model results
+========================================================
+
+&nbsp;
+
+
+```{r, echo=TRUE}
 precis(model)
-```
-
-```
-        Mean StdDev lower 0.89 upper 0.89 n_eff Rhat
-a     159.34  23.66     123.89     200.52    80 1.00
-b      -0.06   0.01      -0.08      -0.04    80 1.00
-sigma   1.61   0.41       1.05       2.12    67 1.01
 ```
 
 
@@ -592,13 +657,14 @@ sigma   1.61   0.41       1.05       2.12    67 1.01
 
 
 
-What about the regression line?
+So, what about the regression line?
 ========================================================
 
 &nbsp;
 
 With all the sampling that's been going on, now we don't just have 1 line, but many!
-We extract synchronous parameter values from the samples and construct one line per sample:
+
+We extract parameter values from the samples and construct one line per sample:
 
 ```{r, echo = FALSE}
 post <- extract.samples(model)
@@ -607,8 +673,120 @@ post <- extract.samples(model)
 plot( male400_1996$year , male400_1996$seconds ,
       xlim=range(male400_1996$year) , ylim=range(male400_1996$seconds) ,
       col=rangi2 , xlab="" , ylab="" )
-for ( i in 1:20 )
-  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.3))
+for ( i in 1:100 )
+  abline( a=post$a[i] , b=post$b[i] , col=col.alpha("black",0.2))
+```
+
+
+We can immediately _see_ the uncertainty in our model!
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Posterior intervals for the regression line
+========================================================
+class:smalltext
+
+&nbsp;
+
+In the Bayesian framework, the equivalent of a confidence interval is a _credible interval_.
+Equivalent? Well... except
+- credible intervals really have an intuitive interpretation
+- credible intervals really contain the highest density values
+
+```{r, results= "hide", fig.width=16}
+df <- male400_1996 %>% bind_cols(is_pred = factor(rep(0, nrow(male400_1996)), levels = c(0,1)))
+df <-  df %>% bind_rows(data.frame(year = seq(2000, 2016, by=4), is_pred = factor(rep(1,5), levels = c(0,1))))
+mu <- link(model, data=df)
+mu_mean <- apply(mu, 2, mean)
+mu_HPDI <- apply(mu, 2, HPDI , prob=0.95) %>% t()
+df[25:29,2] <- mu_mean[25:29]
+```
+
+```{r}
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = mu_HPDI[ , 1], ymax = mu_HPDI[ , 2]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Credible intervals from Bayesian linear regression") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+
+```
+
+Credible intervals are easily constructed using existing samples from the parameters' posterior.
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Prediction intervals
+========================================================
+class:smalltext
+
+&nbsp;
+
+Of course, here again we're not really interested in predicting averages, but individual examples.
+
+We want _prediction intervals_:
+
+```{r, results= "hide", fig.width=16}
+sims <- sim(model, data=df)
+sim_PI <- apply(sims, 2, PI, prob=0.95) %>% t()
+```
+
+```{r}
+ggplot(df, aes(x = year, y=seconds)) + geom_point(aes(color = is_pred, shape = is_pred), size = 3) + 
+  geom_ribbon(aes(ymin = sim_PI[ , 1], ymax = sim_PI[ , 2]), alpha = 0.2) +
+  ggtitle("Men's 400m Olympic winning times 1986-1996 and predictions for 2000-2016", subtitle = "Prediction intervals from Bayesian linear regression") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+
+```
+
+Prediction intervals are computed from the complete _posterior predictive_ distribution.
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+So that's uncertainty intervals...
+========================================================
+
+&nbsp;
+
+... didn't you say we'd look at _complete distributions_ for our predictions?
+
+Yes. That's the _posterior predictive_ distribution:
+
+$$p(\tilde{y}|X, y, \tilde{x}, \theta) = \int p(\tilde{y}|\tilde{x},\theta) \, p(\theta|X,y) \operatorname{d}\!\theta$$
+
+The posterior predictive is a weighted average of predictions, computed over all possible parameter values.
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Posterior predictive - the whole picture
+========================================================
+
+&nbsp;
+
+We actually have a distribution of predictions for every point in time.
+
+```{r, fig.width=16}
+df <- data.frame(sims)
+df <- df %>% 
+  gather(key = "year", value = "secs") %>% 
+  mutate(year = as.numeric(str_sub(year,2,3)))
+
+convert_years <- function(x) 1896 + 4* (x-1)
+
+ggplot(df, aes(x = secs, y = year, group = year, height = ..density..)) + geom_joy(stat = "density", rel_min_height = 0.01, scale=4) +
+  scale_x_reverse() + scale_y_reverse() + theme_joy(grid = FALSE) +
+  scale_y_continuous(labels = convert_years) 
+  
 ```
 
 
@@ -616,8 +794,184 @@ for ( i in 1:20 )
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
+Fine. So Bayes solves it all...
+========================================================
+
+&nbsp;
+
+&nbsp;
+
+... what if I'm using deep learning?
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
+========================================================
+type:prompt
+
+&nbsp; 
+
+&nbsp; 
+
+<h1>
+Uncertainty in deep neural networks
+</h1>
+
+
+
+Uncertainty in deep learning
+========================================================
+
+&nbsp;
+
+- Normally, in neural networks, the outputs are point predictions (possibly in the form of class probabilities)
+- Looking at NN architecture, it is not self-evident how to extract confidence/prediction intervals from a network
+- We could always apply the bootstrap approach, or even simple ensembling, to at least get a feel for the variability of the net's estimates
+- Several other approaches have been suggested, among them the use of _dropout_ to calculate uncertainty:
+
+<figure>
+    <img src='dropout.png' width='50%'/>
+    <figcaption>Source: [1]</figcaption>
+</figure>
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Dropout networks as variational inference in Gaussian processes
+========================================================
+
+&nbsp;
+
+"... We'll see that what we did above, averaging forward passes through the network, is equivalent to Monte Carlo integration over a Gaussian process posterior approximation."
+Yarin Gal, <a href=""></a>
+
+```{r}
+library(keras)
+K <- keras::backend()
+
+n_samples <- 1000
+n_features <- 1
+n_hidden1 <- 128
+n_hidden2 <- 128
+n_output <- 1
+
+learning_rate <- 1e-6
+num_epochs <- 100
+batch_size <- n_samples / 100
+
+dropout <- 0.5
+l2 <- 0.1
+X_train <- matrix(c(-500, -200, 1:996 + rnorm(996, mean = 0, sd = 10), 1200, 1500),
+                  nrow = 1000, ncol = 1)
+dim(X_train)
+coefs <- c(0.5)
+mu <- X_train %*% coefs
+sigma = 2
+y_train <- rnorm(n_samples, mu, sigma)
+
+fit <- lm(y_train ~ X_train)
+summary(fit)
+ 
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = n_hidden1, activation = 'relu', input_shape = c(n_features)) %>% 
+  layer_dropout(rate = dropout) %>% 
+  layer_activity_regularization(l1=0, l2=l2) %>%
+  layer_dense(units = n_hidden2, activation = 'relu') %>%
+  layer_dropout(rate = dropout) %>%
+  layer_activity_regularization(l1=0, l2=l2) %>%
+  layer_dense(units = n_output, activation = 'linear')
+
+model %>% summary()
+
+model %>% compile(
+  loss = 'mean_squared_error',
+  optimizer = optimizer_adam())
+  
+history <- model %>% fit(
+    X_train, y_train, 
+    epochs = num_epochs, batch_size = batch_size, 
+    validation_split = 0.2
+)
+
+model$layers
+get_output = K$`function`(list(model$layers[[1]]$input, K$learning_phase()), list(model$layers[[7]]$output))
+
+n <- 20
+inclusion_prob <- 1-dropout
+num_samples <- nrow(X_train)
+weight_decay <- l2
+length_scale <- 0.5
+
+preds <- matrix(NA, nrow = nrow(X_train), ncol = n)
+dim(preds)
+for(i in seq_len(n)) {
+  # train mode = 1
+  preds[ ,i] <- get_output(list(X_train, 1))[[1]]
+}
+dim(preds)
+
+predictive_mean <- apply(preds, 1, mean)
+predictive_var <-apply(preds, 1, var)
+tau <- length_scale^2 * inclusion_prob / (2 * num_samples * weight_decay)
+predictive_var <- predictive_var + tau^-1
+
+df <- data.frame(
+  x = as.vector(X_train),
+  pred_mean = predictive_mean,
+  lwr = predictive_mean - sqrt(predictive_var),
+  upr = predictive_mean + sqrt(predictive_var)
+)
+
+ggplot(df, aes(x = x, y=predictive_mean)) + geom_point() + 
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) 
+
+
+```
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Posterior predictive - the whole picture
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Posterior predictive - the whole picture
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+Posterior predictive - the whole picture
+========================================================
+
+&nbsp;
+
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+
+
+Posterior predictive - the whole picture
 ========================================================
 
 &nbsp;
@@ -630,55 +984,13 @@ for ( i in 1:20 )
 
 
 
-========================================================
 
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-
-========================================================
-
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-
-========================================================
-
-&nbsp;
-
-
-
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
-
-
-
-##############################################################################################
-
-TBD 
-
-- bootstrap??
-- bayes
-- time series??
-- dropout
-- end with real values 
-
+  
 
 Sources
 ========================================================
 class:smalltext
 
-[] 
+[1] http://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf
+
 

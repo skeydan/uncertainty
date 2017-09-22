@@ -60,22 +60,23 @@ mu <- link( model)
 str(mu)
 dim(mu)
 
-ys <- seq( from=1896 , to=2016 , by=4)
+ys <- seq(from=1896 , to=2016 , by=4)
 
-mu <- link( model , data=data.frame(year=ys) )
+mu <- link(model, data=data.frame(year=ys) )
 str(mu)
+dim(mu)
 
 plot( seconds ~ year , male400_1996 , type="n" )
 for ( i in 1:100 )
   points( ys , mu[i,] , pch=16 , col=col.alpha(rangi2,0.1) )
 
 ### posterior interval for the regression line
-mu.mean <- apply( mu , 2 , mean )
-mu.HPDI <- apply( mu , 2 , HPDI , prob=0.89 )
+mu.mean <- apply(mu , 2 , mean)
+mu.HPDI <- apply(mu , 2 , HPDI , prob=0.89)
 
 plot( seconds ~ year , male400_1996 , col=col.alpha(rangi2,0.5) )
-lines( ys , mu.mean )
-shade( mu.HPDI , ys )
+lines(ys , mu.mean)
+shade(mu.HPDI , ys)
 
 
 ### prediction intervals
@@ -91,8 +92,8 @@ shade( sim.PI , ys )
 
 
 ### joyplot
-df <- data.frame(mu)
-df <- data.frame(sim)
+#df <- data.frame(mu)
+df <- data.frame(sims)
 df <- df %>% 
   gather(key = "year", value = "secs") %>% 
   mutate(year = as.numeric(str_sub(year,2,3)))
