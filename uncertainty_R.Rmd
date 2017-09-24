@@ -1,6 +1,8 @@
 ---
 title: "uncertainty_R"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 ---
 
 ```{r global_options, include=FALSE}
@@ -385,29 +387,136 @@ This is an amazing amount of information we get when using the Bayesian approach
 
 However, there is one thing we haven't addressed yet: What if I use neural networks for prediction - what if use deep learning?
 
-<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
-<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+## Uncertainty in deep neural networks
+
+Normally, in neural networks, the outputs are point predictions (possibly in the form of class probabilities).
+Looking at NN architecture, it is not self-evident how to extract confidence/prediction intervals from a network.
+
+One the one hand, we could always apply the bootstrap approach, or even simple ensembling, to at least get a feel for the variability of the net's estimates.
+Among several other approaches that have been suggested, a prominent one is the use of _dropout_ to calculate uncertainty.
+
+## Dropout networks as variational inference in Gaussian processes
+
+Quoting from  Yarin Gal's blog post, <a href="http://mlg.eng.cam.ac.uk/yarin/blog_3d801aa532c1ce.html">What my deep model doesn't know</a>,
+
+"... We'll see that what we did above, averaging forward passes through the network, is equivalent to Monte Carlo integration over a Gaussian process posterior approximation."
+
+I've constructed a simple example to demonstrate this:
+
+```{r, results="hide"}
+library(keras)
+K <- keras::backend()
+
+n_samples <- 1000
+n_features <- 1
+n_hidden1 <- 128
+n_hidden2 <- 128
+n_output <- 1
+
+learning_rate <- 1e-6
+num_epochs <- 100
+batch_size <- n_samples / 100
+
+dropout <- 0.5
+l2 <- 0.1
+X_train <- matrix(c(-500, -200, 1:996 + rnorm(996, mean = 0, sd = 10), 1200, 1500),
+                  nrow = 1000, ncol = 1)
+dim(X_train)
+coefs <- c(0.5)
+mu <- X_train %*% coefs
+sigma = 2
+y_train <- rnorm(n_samples, mu, sigma)
+
+fit <- lm(y_train ~ X_train)
+summary(fit)
+ 
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = n_hidden1, activation = 'relu', input_shape = c(n_features)) %>% 
+  layer_dropout(rate = dropout) %>% 
+  layer_activity_regularization(l1=0, l2=l2) %>%
+  layer_dense(units = n_hidden2, activation = 'relu') %>%
+  layer_dropout(rate = dropout) %>%
+  layer_activity_regularization(l1=0, l2=l2) %>%
+  layer_dense(units = n_output, activation = 'linear')
+
+model %>% summary()
+
+model %>% compile(
+  loss = 'mean_squared_error',
+  optimizer = optimizer_adam())
+  
+history <- model %>% fit(
+    X_train, y_train, 
+    epochs = num_epochs, batch_size = batch_size, 
+    validation_split = 0.2
+)
+
+model$layers
+get_output = K$`function`(list(model$layers[[1]]$input, K$learning_phase()), list(model$layers[[7]]$output))
+
+n <- 20
+inclusion_prob <- 1-dropout
+num_samples <- nrow(X_train)
+weight_decay <- l2
+length_scale <- 0.5
+
+preds <- matrix(NA, nrow = nrow(X_train), ncol = n)
+for(i in seq_len(n)) {
+  # train mode = 1
+  preds[ ,i] <- get_output(list(X_train, 1))[[1]]
+}
+
+predictive_mean <- apply(preds, 1, mean)
+predictive_var <-apply(preds, 1, var)
+tau <- length_scale^2 * inclusion_prob / (2 * num_samples * weight_decay)
+predictive_var <- predictive_var + tau^-1
+
+df <- data.frame(
+  x = as.vector(X_train),
+  pred_mean = predictive_mean,
+  lwr = predictive_mean - sqrt(predictive_var),
+  upr = predictive_mean + sqrt(predictive_var)
+)
+
+```
+
+```{r}
+ggplot(df, aes(x = x, y=predictive_mean)) + geom_point() + 
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  ggtitle("Predictive variance in a deep neural network - example") +
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20, legend.position = "none")
+```
 
 
-========================================================
-type:prompt
+Ok. By now we've seen quite some methods and approaches, but ... we don't know _how_ wrong we'd have been with our original point prediction (or any other one!). In reality it's 2017 so we're so much wiser now... So what _was_ the men's 400m Olympic winning time in 2000?
 
-&nbsp; 
-
-&nbsp; 
-
-<h1>
-Uncertainty in deep neural networks
-</h1>
-
-
-
-Uncertainty in deep learning
-========================================================
+## The truth about the 400m - up until 2016 at least
 
 &nbsp;
 
-- Normally, in neural networks, the outputs are point predictions (possibly in the form of class probabilities)
-- Looking at NN architecture, it is not self-evident how to extract confidence/prediction intervals from a network
-- We could always apply the bootstrap approach, or even simple ensembling, to at least get a feel for the variability of the net's estimates
-- Several other approaches have been suggested, among them the use of _dropout_ to calculate uncertainty:
+```{r, fig.width = 20}
+ggplot(male400, aes(x = year, y = seconds)) + geom_line() +
+  geom_point(data = male400_2000, size=3) +
+  ggtitle("Men's 400m Olympic winning times 1986-2016") +
+  xlab("year") + ylab("seconds") + 
+  theme(title = bold_text_20, axis.title = bold_text_20, axis.text = bold_text_20)
+```
+
+
+## Conclusion
+
+As we have to stop at _some_ time, here's the conclusion.
+
+If you take away one thing from this talk, it's the _importance_ of reporting uncertainty.
+
+If your tool/your method doesn't seem to yield such information, dig deeper... 
+
+- if it's some vendor's licensed product, don't let them get away with it ;-)
+- if it's a method you've developed yourself, think how you can incorporate it, and
+- if you're using a tool (language) like R, check out it's fantastic packages, which provide just about everything.
+
+Finally, if you have questions, don't hesitate to ask :-) Thank you!
+    
+
+

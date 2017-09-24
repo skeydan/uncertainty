@@ -87,7 +87,7 @@ library(stringr)
 - When should we invest in more powerful servers?
 - How many boxes of super healthy energy bars should we keep in stock?
 - How long does it take to run this batch job?
-- How much time do you need to get me this exposition?
+- How much time do you need for that report?
 
 
 <img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
@@ -102,7 +102,7 @@ type:prompt
 &nbsp; 
 
 <h1>
-What we do: sports forecasts
+Our job: sports forecasting
 </h1>
 
 
@@ -141,7 +141,7 @@ ggplot(male400_1996, aes(x = year, y = seconds)) + geom_line() + ggtitle("Men's 
 <img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
 
 
-42.3 seconds? 42.1?
+Expected time in 2000: 42.3 seconds? Or 42.1?
 ========================================================
 
 &nbsp;
@@ -164,7 +164,9 @@ How do we deal with this?
 
 &nbsp;
 
-Let's better not commit to a point estimate... prediction intervals to the rescue!
+Let's better not commit to a point estimate... 
+
+Prediction intervals to the rescue!
 
 
 
