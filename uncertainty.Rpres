@@ -32,6 +32,10 @@
   font-size: 0.75em;
 }
 
+.reveal .mediumtext {
+  font-size: 0.85em;
+}
+
 </style>
 
 
@@ -43,6 +47,32 @@ autosize: true
 incremental:false
 width: 1400
 height: 900
+
+
+About me & my employer
+========================================================
+class:mediumtext
+
+
+<img src="tri_logo_high.jpg" style="position:absolute;top:0px;right:0px; width: 10%" />
+<img src='cube3.png' border=0 style="position:absolute;top:90%;right:0px; width: 8%" />
+
+&nbsp;
+
+Trivadis
+- DACH-based IT consulting and service company, from traditional technologies to big data/machine learning/data science
+
+My background
+- from psychology/statistics via software development and database engineering to data science and ML/DL
+
+My passion
+- machine learning and deep learning
+- data science and (Bayesian) statistics
+- explanation/understanding over prediction accuracy
+
+Where to find me
+- blog: http://recurrentnull.wordpress.com
+- twitter: @zkajdan
 
 
 ========================================================
@@ -419,7 +449,7 @@ class:small-code
 &nbsp;
 
 ```{r, echo=TRUE}
-arima_fit <- auto.arima(male400_1996$seconds, allowdrift = FALSE)
+arima_fit <- auto.arima(male400_1996$seconds)
 arima_fit$coef
 ```
 
